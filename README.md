@@ -19,7 +19,7 @@ A local web dashboard that tracks Amazon product price, rating, review count, an
 
 ```bash
 # 1. Clone
-git clone https://github.com/YOUR_USERNAME/amazon-asin-monitor.git
+git clone https://github.com/CookieCN/amazon-asin-monitor.git
 cd amazon-asin-monitor
 
 # 2. Install dependencies
