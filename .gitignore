@@ -1,0 +1,43 @@
+# Amazon ASIN Monitor - Git Ignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Runtime data (contains monitored product data — users should NOT commit this)
+data/
+!data/.gitkeep
+
+# Cookie cache (anti-detection session cookies)
+cookies/
+
+# Server logs
+server.log
+*.log
+
+# Node.js (if you install Chart.js locally)
+node_modules/
+
+# WorkBuddy internal files
+.workbuddy/
+*.zip
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.venv/
+venv/

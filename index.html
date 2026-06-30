@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amazon ASIN Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f5f6fa;
+  --card-bg: #ffffff;
+  --sidebar-bg: #1a1d2e;
+  --sidebar-hover: #262a3e;
+  --sidebar-active: #2d3154;
+  --accent: #4f6ef7;
+  --accent-light: #eef1ff;
+  --text: #1a1d2e;
+  --text-secondary: #6b7280;
+  --text-light: #9ca3af;
+  --border: #e5e7eb;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --radius: 12px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+  --transition: 0.2s ease;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ===== Sidebar ===== */
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--sidebar-bg);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  z-index: 10;
+}
+
+.sidebar-header {
+  padding: 20px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.sidebar-header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-header h1 .icon { font-size: 22px; }
+
+.sidebar-stats {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+}
+
+.sidebar-stats span {
+  background: rgba(255,255,255,0.08);
+  padding: 3px 10px;
+  border-radius: 10px;
+}
+
+.sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0;
+}
+
+.sidebar-list::-webkit-scrollbar { width: 4px; }
+.sidebar-list::-webkit-scrollbar-track { background: transparent; }
+.sidebar-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+
+.asin-item {
+  padding: 12px 18px;
+  cursor: pointer;
+  transition: var(--transition);
+  border-left: 3px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.asin-item:hover { background: var(--sidebar-hover); }
+
+.asin-item.active {
+  background: var(--sidebar-active);
+  border-left-color: var(--accent);
+}
+
+.asin-item .asin-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.1);
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.asin-item .asin-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.asin-item .asin-info { flex: 1; min-width: 0; }
+
+.asin-item .asin-name {
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(255,255,255,0.9);
+}
+
+.asin-item .asin-code {
+  font-size: 10px;
+  color: rgba(255,255,255,0.45);
+  margin-top: 2px;
+}
+
+.asin-item .asin-price {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  margin-top: 1px;
+}
+
+.asin-item .asin-stock {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.asin-item .asin-stock.in-stock { background: var(--success); }
+.asin-item .asin-stock.out-stock { background: var(--danger); }
+.asin-item .asin-stock.unknown { background: var(--text-light); }
+
+.sidebar-footer {
+  padding: 14px 18px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.btn-add-asin {
+  width: 100%;
+  padding: 10px;
+  border: 1px dashed rgba(255,255,255,0.25);
+  background: transparent;
+  color: rgba(255,255,255,0.7);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-add-asin:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.4);
+}
+
+/* ===== Main Content ===== */
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+
+.main-content::-webkit-scrollbar { width: 6px; }
+.main-content::-webkit-scrollbar-track { background: transparent; }
+.main-content::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+/* ===== Top Bar ===== */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.product-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  max-width: 600px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.btn:hover { background: #f9fafb; border-color: #d1d5db; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn-primary:hover { background: #3d5ce5; border-color: #3d5ce5; }
+
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+
+.btn-danger { color: var(--danger); border-color: var(--danger); }
+.btn-danger:hover { background: #fef2f2; }
+
+.time-tabs {
+  display: flex;
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 1px;
+}
+
+.time-tab {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: var(--transition);
+}
+
+.time-tab.active {
+  background: var(--card-bg);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ===== Product Card ===== */
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.product-card {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.product-image {
+  width: 160px;
+  height: 160px;
+  border-radius: 8px;
+  background: #f9fafb;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+}
+
+.product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 8px;
+}
+
+.product-image .placeholder {
+  font-size: 48px;
+  color: #d1d5db;
+}
+
+.product-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.product-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-market {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.badge-asin {
+  background: #f3f4f6;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.badge-stock {
+  font-size: 11px;
+}
+
+.badge-stock.in-stock { background: #ecfdf5; color: var(--success); }
+.badge-stock.out-stock { background: #fef2f2; color: var(--danger); }
+
+.product-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+
+.product-link:hover { text-decoration: underline; }
+
+/* ===== Metrics Grid ===== */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.metric-card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.metric-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.metric-change {
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.metric-change.up { color: var(--danger); }
+.metric-change.down { color: var(--success); }
+
+.metric-sub {
+  font-size: 11px;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+
+/* ===== Chart Section ===== */
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.chart-card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  overflow: hidden;
+}
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.chart-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 200px;
+}
+
+.chart-container canvas { width: 100% !important; }
+
+.chart-full {
+  grid-column: 1 / -1;
+}
+
+.chart-full .chart-container { height: 280px; }
+
+/* Stock timeline */
+.stock-timeline {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.stock-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.stock-dot:hover { transform: scale(1.5); z-index: 2; }
+
+.stock-dot.in-stock { background: var(--success); }
+.stock-dot.out-stock { background: var(--danger); }
+.stock-dot.unknown { background: var(--text-light); }
+
+/* ===== Modal ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: fadeIn 0.15s;
+}
+
+.modal {
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 24px;
+  width: 440px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  animation: slideUp 0.2s;
+}
+
+.modal h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.form-group input, .form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  transition: var(--transition);
+  background: #fafbfc;
+}
+
+.form-group input:focus, .form-group select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79,110,247,0.1);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+/* ===== Empty State ===== */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.empty-state .empty-icon { font-size: 56px; margin-bottom: 16px; }
+
+.empty-state h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.empty-state p { font-size: 13px; max-width: 320px; }
+
+/* ===== Loading ===== */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ===== Animations ===== */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  z-index: 200;
+  animation: slideUp 0.2s;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
+.toast.info { background: var(--accent); }
+
+/* ===== Responsive ===== */
+@media (max-width: 1200px) {
+  .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+  .charts-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .sidebar { width: 72px; min-width: 72px; }
+  .sidebar-header h1 span { display: none; }
+  .sidebar-stats, .asin-name, .asin-code, .asin-price { display: none; }
+  .asin-item { padding: 12px; justify-content: center; }
+  .product-card { flex-direction: column; }
+  .product-image { width: 100%; height: 200px; }
+  .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== Sidebar ===== -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <h1><span class="icon">📦</span><span>AMZ Monitor</span></h1>
+    <div class="sidebar-stats">
+      <span id="sidebarCount">0 产品</span>
+      <span id="sidebarActive">0 活跃</span>
+    </div>
+  </div>
+  <div class="sidebar-list" id="asinList"></div>
+  <div class="sidebar-footer">
+    <button class="btn-add-asin" onclick="showAddModal()">+ 添加 ASIN</button>
+  </div>
+</aside>
+
+<!-- ===== Main ===== -->
+<main class="main-content" id="mainContent">
+  <div class="empty-state" id="emptyState">
+    <div class="empty-icon">📊</div>
+    <h2>未选择产品</h2>
+    <p>从左侧列表选择一个产品查看监控详情，或点击"添加 ASIN"开始监控新产品。</p>
+    <button class="btn btn-primary" onclick="showAddModal()" style="margin-top:12px">+ 添加 ASIN</button>
+  </div>
+  <div id="detailView" style="display:none;"></div>
+</main>
+
+<!-- ===== Add Modal ===== -->
+<div class="modal-overlay" id="addModal" style="display:none;">
+  <div class="modal">
+    <h3>添加 ASIN 监控</h3>
+    <div class="form-group">
+      <label>ASIN 编码</label>
+      <input type="text" id="inputAsin" placeholder="例如: B0FKHC8PPV">
+    </div>
+    <div class="form-group">
+      <label>Amazon 站点</label>
+      <select id="inputMarketplace">
+        <option value="amazon.us">Amazon.com (美国)</option>
+        <option value="amazon.uk">Amazon.co.uk (英国)</option>
+        <option value="amazon.de">Amazon.de (德国)</option>
+        <option value="amazon.fr">Amazon.fr (法国)</option>
+        <option value="amazon.jp">Amazon.co.jp (日本)</option>
+        <option value="amazon.ca">Amazon.ca (加拿大)</option>
+        <option value="amazon.it">Amazon.it (意大利)</option>
+        <option value="amazon.es">Amazon.es (西班牙)</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideAddModal()">取消</button>
+      <button class="btn btn-primary" onclick="addAsin()">添加并抓取</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Confirm Modal ===== -->
+<div class="modal-overlay" id="confirmModal" style="display:none;">
+  <div class="modal">
+    <h3 id="confirmTitle">确认操作</h3>
+    <p id="confirmMsg" style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;"></p>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideConfirmModal()">取消</button>
+      <button class="btn btn-danger" id="confirmBtn">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toastContainer"></div>
+
+<script>
+// ===== State =====
+let config = { asins: [], settings: {} };
+let allData = {};
+let currentAsin = null;
+let currentTimeRange = 7;
+let chartInstances = {};
+
+// ===== Data Loading =====
+async function loadAllData() {
+  try {
+    const cfgResp = await fetch('data/config.json?_t=' + Date.now());
+    config = await cfgResp.json();
+
+    // Load data for each ASIN
+    for (const asin of config.asins) {
+      try {
+        const resp = await fetch(`data/${asin.asin}.json?_t=` + Date.now());
+        allData[asin.asin] = await resp.json();
+      } catch (e) {
+        allData[asin.asin] = { asin: asin.asin, history: [] };
+      }
+    }
+    
+    renderSidebar();
+    
+    if (currentAsin) {
+      // Refresh current view
+      if (config.asins.find(a => a.asin === currentAsin)) {
+        renderDetail(currentAsin);
+      } else {
+        currentAsin = null;
+        showEmptyState();
+      }
+    } else if (config.asins.length > 0) {
+      selectAsin(config.asins[0].asin);
+    }
+  } catch (e) {
+    console.error('Failed to load data:', e);
+    showToast('加载数据失败', 'error');
+  }
+}
+
+// ===== Sidebar =====
+function renderSidebar() {
+  const list = document.getElementById('asinList');
+  document.getElementById('sidebarCount').textContent = `${config.asins.length} 产品`;
+  document.getElementById('sidebarActive').textContent = 
+    `${config.asins.filter(a => a.active !== false).length} 活跃`;
+  
+  list.innerHTML = config.asins.map(a => {
+    const data = allData[a.asin];
+    const history = data?.history || [];
+    const latest = history[history.length - 1] || {};
+    const stockClass = latest.in_stock === true ? 'in-stock' : 
+                       latest.in_stock === false ? 'out-stock' : 'unknown';
+    const name = a.name || data?.name || a.asin;
+    const price = latest.price ? `$${latest.price.toFixed(2)}` : '--';
+    
+    return `
+      <div class="asin-item ${currentAsin === a.asin ? 'active' : ''}" 
+           onclick="selectAsin('${a.asin}')">
+        <div class="asin-thumb">
+          ${a.image_url ? `<img src="${a.image_url}" alt="">` : '📦'}
+        </div>
+        <div class="asin-info">
+          <div class="asin-name">${escapeHtml(name)}</div>
+          <div class="asin-code">${a.asin} · ${a.marketplace}</div>
+          <div class="asin-price">${price}</div>
+        </div>
+        <span class="asin-stock ${stockClass}" title="${stockClass.replace('-',' ')}"></span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ===== Detail View =====
+function renderDetail(asin) {
+  currentAsin = asin;
+  const entry = config.asins.find(a => a.asin === asin);
+  if (!entry) return;
+  
+  const data = allData[asin];
+  const history = data?.history || [];
+  const latest = history[history.length - 1] || {};
+  const name = entry.name || data?.name || asin;
+  
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('detailView').style.display = 'block';
+  
+  // Filter by time range
+  const filtered = filterByTimeRange(history);
+  const prev = filtered.length > 1 ? filtered[filtered.length - 2] : null;
+  
+  // Price change
+  let priceChangeHtml = '';
+  if (latest.price && prev?.price) {
+    const diff = latest.price - prev.price;
+    const pct = (diff / prev.price * 100);
+    if (Math.abs(diff) > 0.01) {
+      const cls = diff > 0 ? 'up' : 'down';
+      const arrow = diff > 0 ? '▲' : '▼';
+      priceChangeHtml = `<div class="metric-change ${cls}">${arrow} ${Math.abs(pct).toFixed(1)}%</div>`;
+    }
+  }
+  
+  // Rating change
+  let ratingChangeHtml = '';
+  if (latest.rating && prev?.rating) {
+    const diff = latest.rating - prev.rating;
+    if (Math.abs(diff) > 0.01) {
+      const cls = diff > 0 ? 'up' : 'down';
+      const arrow = diff > 0 ? '▲' : '▼';
+      ratingChangeHtml = `<div class="metric-change ${cls}">${arrow} ${Math.abs(diff).toFixed(1)}</div>`;
+    }
+  }
+  
+  // Review change
+  let reviewChangeHtml = '';
+  if (latest.review_count && prev?.review_count) {
+    const diff = latest.review_count - prev.review_count;
+    if (diff !== 0) {
+      reviewChangeHtml = `<div class="metric-change up">+${diff}</div>`;
+    }
+  }
+  
+  const lastUpdate = latest.timestamp ? 
+    new Date(latest.timestamp).toLocaleString('zh-CN') : '暂无';
+  
+  const tldMap = { 'amazon.us': 'com', 'amazon.uk': 'co.uk', 'amazon.de': 'de', 
+    'amazon.fr': 'fr', 'amazon.jp': 'co.jp', 'amazon.ca': 'ca', 'amazon.it': 'it', 'amazon.es': 'es' };
+  const tld = tldMap[entry.marketplace] || 'com';
+  const amazonUrl = `https://www.amazon.${tld}/dp/${asin}`;
+  
+  const currencySymbol = latest.currency === 'GBP' ? '£' : latest.currency === 'EUR' ? '€' : 
+                         latest.currency === 'JPY' ? '¥' : '$';
+  
+  document.getElementById('detailView').innerHTML = `
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <div class="product-title" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+      <div class="top-actions">
+        <div class="time-tabs">
+          <button class="time-tab ${currentTimeRange === 7 ? 'active' : ''}" onclick="switchTimeRange(7)">7天</button>
+          <button class="time-tab ${currentTimeRange === 30 ? 'active' : ''}" onclick="switchTimeRange(30)">30天</button>
+          <button class="time-tab ${currentTimeRange === 90 ? 'active' : ''}" onclick="switchTimeRange(90)">90天</button>
+          <button class="time-tab ${currentTimeRange === 0 ? 'active' : ''}" onclick="switchTimeRange(0)">全部</button>
+        </div>
+        <button class="btn" onclick="exportCSV('${asin}')">📥 导出CSV</button>
+        <button class="btn btn-primary" onclick="refreshData()">🔄 刷新</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmRemove('${asin}')">删除</button>
+      </div>
+    </div>
+
+    <!-- Product Card -->
+    <div class="card product-card">
+      <div class="product-image">
+        ${entry.image_url ? 
+          `<img src="${entry.image_url}" alt="" onerror="this.parentElement.innerHTML='<span class=placeholder>📦</span>'">` : 
+          '<span class="placeholder">📦</span>'}
+      </div>
+      <div class="product-info">
+        <div class="product-meta">
+          <span class="badge badge-market">${entry.marketplace}</span>
+          <span class="badge badge-asin">${asin}</span>
+          <span class="badge badge-stock ${latest.in_stock === true ? 'in-stock' : latest.in_stock === false ? 'out-stock' : ''}">
+            ${latest.in_stock === true ? '✓ 有货' : latest.in_stock === false ? '✕ 缺货' : '? 未知'}
+          </span>
+        </div>
+        <a href="${amazonUrl}" target="_blank" class="product-link" rel="noopener">在 Amazon 查看 →</a>
+        <div style="font-size:11px;color:var(--text-light);">最近更新: ${lastUpdate}</div>
+        <div style="font-size:11px;color:var(--text-light);">数据点数: ${history.length}</div>
+      </div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">当前价格</div>
+        <div class="metric-value">${latest.price ? currencySymbol + latest.price.toFixed(2) : '--'}</div>
+        ${priceChangeHtml}
+        <div class="metric-sub">${latest.currency || 'USD'}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">评分</div>
+        <div class="metric-value">${latest.rating ? latest.rating.toFixed(1) + ' ★' : '--'}</div>
+        ${ratingChangeHtml}
+        <div class="metric-sub">满分 5.0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">评分数</div>
+        <div class="metric-value">${latest.review_count ? latest.review_count.toLocaleString() : '--'}</div>
+        ${reviewChangeHtml}
+        <div class="metric-sub">条评价</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">库存状态</div>
+        <div class="metric-value" style="font-size:18px;">
+          ${latest.in_stock === true ? '✅ 有货' : latest.in_stock === false ? '❌ 缺货' : '--'}
+        </div>
+        <div class="metric-sub">${latest.in_stock === true ? '可正常购买' : latest.in_stock === false ? '暂时无法购买' : ''}</div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-header">
+          <span class="chart-title">📈 价格趋势</span>
+          <span style="font-size:11px;color:var(--text-light);">${currencySymbol}</span>
+        </div>
+        <div class="chart-container"><canvas id="chartPrice"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <span class="chart-title">⭐ 评分趋势</span>
+          <span style="font-size:11px;color:var(--text-light);">满分 5.0</span>
+        </div>
+        <div class="chart-container"><canvas id="chartRating"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <span class="chart-title">💬 评分数趋势</span>
+          <span style="font-size:11px;color:var(--text-light);">条</span>
+        </div>
+        <div class="chart-container"><canvas id="chartReviews"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <span class="chart-title">📦 库存状态</span>
+          <span style="font-size:11px;color:var(--text-light);">时间线</span>
+        </div>
+        <div class="chart-container" style="display:flex;align-items:center;padding:10px;">
+          <div class="stock-timeline">
+            ${renderStockTimeline(filtered)}
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;justify-content:center;font-size:11px;color:var(--text-light);margin-top:8px;">
+          <span>🟢 有货</span><span>🔴 缺货</span>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  renderSidebar(); // Update active state
+  
+  // Render charts
+  setTimeout(() => {
+    renderPriceChart(filtered, currencySymbol);
+    renderRatingChart(filtered);
+    renderReviewsChart(filtered);
+  }, 100);
+}
+
+function showEmptyState() {
+  document.getElementById('emptyState').style.display = 'flex';
+  document.getElementById('detailView').style.display = 'none';
+  currentAsin = null;
+  renderSidebar();
+}
+
+function selectAsin(asin) {
+  currentAsin = asin;
+  renderDetail(asin);
+}
+
+// ===== Time Range =====
+function filterByTimeRange(history) {
+  if (currentTimeRange === 0 || !history.length) return history;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - currentTimeRange);
+  return history.filter(h => new Date(h.timestamp) >= cutoff);
+}
+
+function switchTimeRange(days) {
+  currentTimeRange = days;
+  if (currentAsin) renderDetail(currentAsin);
+}
+
+// ===== Charts =====
+function destroyCharts() {
+  ['chartPrice', 'chartRating', 'chartReviews'].forEach(id => {
+    if (chartInstances[id]) {
+      chartInstances[id].destroy();
+      delete chartInstances[id];
+    }
+  });
+}
+
+function formatDate(ts) {
+  const d = new Date(ts);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function chartColors() {
+  return {
+    price: { bg: 'rgba(79,110,247,0.1)', border: '#4f6ef7', fill: (ctx) => {
+      const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height);
+      g.addColorStop(0, 'rgba(79,110,247,0.2)');
+      g.addColorStop(1, 'rgba(79,110,247,0.0)');
+      return g;
+    }},
+    rating: { bg: 'rgba(245,158,11,0.1)', border: '#f59e0b' },
+    reviews: { bg: 'rgba(16,185,129,0.1)', border: '#10b981' },
+  };
+}
+
+function renderPriceChart(history, symbol) {
+  destroyCharts();
+  const labels = history.map(h => formatDate(h.timestamp));
+  const prices = history.map(h => h.price);
+  
+  const ctx = document.getElementById('chartPrice');
+  if (!ctx) return;
+  
+  // Chinese convention: price up = RED, price down = GREEN
+  const isUp = prices.length > 1 && prices[prices.length-1] >= prices[0];
+  const lineColor = isUp ? '#ef4444' : '#10b981';
+  const bgColor = isUp ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)';
+  
+  chartInstances['chartPrice'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '价格',
+        data: prices,
+        borderColor: lineColor,
+        backgroundColor: bgColor,
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: lineColor,
+        pointHoverBorderColor: '#fff',
+        pointHoverBorderWidth: 2,
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1d2e',
+          titleFont: { size: 12 },
+          bodyFont: { size: 13 },
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label: (ctx) => ` ${symbol}${ctx.parsed.y.toFixed(2)}`
+          }
+        }
+      },
+      scales: {
+        x: { 
+          display: true,
+          grid: { display: false },
+          ticks: { font: { size: 10 }, color: '#9ca3af', maxTicksLimit: 8 }
+        },
+        y: {
+          grid: { color: '#f3f4f6' },
+          ticks: { 
+            font: { size: 10 }, 
+            color: '#9ca3af',
+            callback: (v) => `${symbol}${v}`
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderRatingChart(history) {
+  const labels = history.map(h => formatDate(h.timestamp));
+  const ratings = history.map(h => h.rating);
+  
+  const ctx = document.getElementById('chartRating');
+  if (!ctx) return;
+  
+  chartInstances['chartRating'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '评分',
+        data: ratings,
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245,158,11,0.1)',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#f59e0b',
+        pointHoverBorderColor: '#fff',
+        pointHoverBorderWidth: 2,
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1d2e',
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label: (ctx) => ` ⭐ ${ctx.parsed.y.toFixed(1)} / 5.0`
+          }
+        }
+      },
+      scales: {
+        x: { 
+          grid: { display: false },
+          ticks: { font: { size: 10 }, color: '#9ca3af', maxTicksLimit: 8 }
+        },
+        y: {
+          min: 1,
+          max: 5,
+          grid: { color: '#f3f4f6' },
+          ticks: { 
+            font: { size: 10 }, 
+            color: '#9ca3af',
+            stepSize: 0.5,
+            callback: (v) => v.toFixed(1)
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderReviewsChart(history) {
+  const labels = history.map(h => formatDate(h.timestamp));
+  const reviews = history.map(h => h.review_count);
+  
+  const ctx = document.getElementById('chartReviews');
+  if (!ctx) return;
+  
+  chartInstances['chartReviews'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '评分数',
+        data: reviews,
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16,185,129,0.1)',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#10b981',
+        pointHoverBorderColor: '#fff',
+        pointHoverBorderWidth: 2,
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1d2e',
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label: (ctx) => ` ${ctx.parsed.y.toLocaleString()} 条评价`
+          }
+        }
+      },
+      scales: {
+        x: { 
+          grid: { display: false },
+          ticks: { font: { size: 10 }, color: '#9ca3af', maxTicksLimit: 8 }
+        },
+        y: {
+          grid: { color: '#f3f4f6' },
+          ticks: { 
+            font: { size: 10 }, 
+            color: '#9ca3af',
+            callback: (v) => v >= 1000 ? (v/1000).toFixed(1) + 'k' : v
+          }
+        }
+      }
+    }
+  });
+}
+
+// ===== Stock Timeline =====
+function renderStockTimeline(history) {
+  if (!history.length) return '<span style="font-size:12px;color:var(--text-light);">无数据</span>';
+  
+  // Show up to 60 dots, pick evenly
+  const maxDots = 60;
+  const step = Math.max(1, Math.floor(history.length / maxDots));
+  const sampled = [];
+  for (let i = 0; i < history.length; i += step) {
+    sampled.push(history[i]);
+  }
+  // Always include last
+  if (sampled[sampled.length - 1] !== history[history.length - 1]) {
+    sampled.push(history[history.length - 1]);
+  }
+  
+  return sampled.map(h => {
+    const cls = h.in_stock === true ? 'in-stock' : h.in_stock === false ? 'out-stock' : 'unknown';
+    const label = h.in_stock === true ? '有货' : h.in_stock === false ? '缺货' : '未知';
+    const time = new Date(h.timestamp).toLocaleString('zh-CN');
+    return `<span class="stock-dot ${cls}" title="${label}: ${time}"></span>`;
+  }).join('');
+}
+
+// ===== Add ASIN =====
+function showAddModal() {
+  document.getElementById('addModal').style.display = 'flex';
+  document.getElementById('inputAsin').value = '';
+  document.getElementById('inputAsin').focus();
+}
+
+function hideAddModal() {
+  document.getElementById('addModal').style.display = 'none';
+}
+
+async function addAsin() {
+  const asin = document.getElementById('inputAsin').value.trim().toUpperCase();
+  const marketplace = document.getElementById('inputMarketplace').value;
+  
+  if (!asin) {
+    showToast('请输入 ASIN 编码', 'error');
+    return;
+  }
+  
+  if (!/^[A-Z0-9]{10}$/.test(asin)) {
+    showToast('ASIN 格式不正确（应为10位字母数字组合）', 'error');
+    return;
+  }
+  
+  // Check duplicate
+  if (config.asins.find(a => a.asin === asin && a.marketplace === marketplace)) {
+    showToast('该 ASIN 已在监控列表中', 'info');
+    return;
+  }
+  
+  hideAddModal();
+  showToast('正在添加并生成示例数据...', 'info');
+  
+  try {
+    // Use server API to add ASIN and generate data
+    const apiResp = await fetch('/api/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ asin, marketplace, name: '' })
+    });
+    
+    const result = await apiResp.json();
+    
+    if (result.status === 'ok') {
+      // Reload all data
+      await loadAllData();
+      selectAsin(asin);
+      showToast('ASIN 添加成功！', 'success');
+    } else {
+      showToast(result.message || '添加失败', 'error');
+    }
+  } catch (e) {
+    console.error(e);
+    // Fallback: add locally
+    hideAddModal();
+    config.asins.push({
+      asin, marketplace, name: asin, image_url: '',
+      url: `https://www.amazon.com/dp/${asin}`,
+      added_at: new Date().toISOString(),
+      active: true
+    });
+    allData[asin] = {
+      asin, marketplace, name: `Product ${asin}`,
+      image_url: '', url: `https://www.amazon.com/dp/${asin}`,
+      history: generateSampleHistory(asin, 7)
+    };
+    selectAsin(asin);
+    showToast('ASIN 已添加（离线模式，数据未持久化）', 'info');
+  }
+}
+
+function generateSampleHistory(asin, days) {
+  const history = [];
+  const now = new Date();
+  const basePrice = 20 + Math.random() * 180;
+  const baseRating = 3.5 + Math.random() * 1.3;
+  const baseReviews = 500 + Math.floor(Math.random() * 5000);
+  
+  for (let i = days * 2; i >= 0; i--) {
+    const t = new Date(now.getTime() - i * 12 * 3600 * 1000);
+    history.push({
+      timestamp: t.toISOString(),
+      price: Math.round((basePrice * (1 + Math.sin(i * 0.5) * 0.05 + (Math.random() - 0.5) * 0.03)) * 100) / 100,
+      currency: 'USD',
+      rating: Math.round(Math.min(5, Math.max(1, baseRating + (days * 2 - i) * 0.005 + (Math.random() - 0.5) * 0.1)) * 10) / 10,
+      review_count: baseReviews + Math.floor(i * (3 + Math.random() * 12)),
+      in_stock: Math.random() > 0.03
+    });
+  }
+  return history;
+}
+
+async function saveConfig() {
+  // In a real setup, you'd POST to a server endpoint
+  // For local file-based, we update in memory and the scraper handles persistence
+  try {
+    const resp = await fetch('data/config.json', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config, null, 2)
+    });
+  } catch (e) {
+    // Fallback: config is managed by Python script
+    console.log('Config saved in memory, use Python scraper to persist');
+  }
+}
+
+// ===== Remove ASIN =====
+let pendingRemove = null;
+
+function confirmRemove(asin) {
+  pendingRemove = asin;
+  document.getElementById('confirmTitle').textContent = '删除监控';
+  document.getElementById('confirmMsg').textContent = 
+    `确定要删除 ASIN ${asin} 的监控吗？历史数据将被保留但不再更新。`;
+  document.getElementById('confirmBtn').onclick = removeAsin;
+  document.getElementById('confirmModal').style.display = 'flex';
+}
+
+function hideConfirmModal() {
+  document.getElementById('confirmModal').style.display = 'none';
+  pendingRemove = null;
+}
+
+async function removeAsin() {
+  if (!pendingRemove) return;
+  const asin = pendingRemove;
+  hideConfirmModal();
+  
+  try {
+    await fetch('/api/remove', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ asin })
+    });
+  } catch (e) {
+    console.log('Remove API failed, removing locally');
+  }
+  
+  config.asins = config.asins.filter(a => a.asin !== asin);
+  delete allData[asin];
+  
+  if (currentAsin === asin) {
+    currentAsin = null;
+    if (config.asins.length > 0) {
+      selectAsin(config.asins[0].asin);
+    } else {
+      showEmptyState();
+    }
+  } else {
+    renderSidebar();
+  }
+  
+  showToast(`已删除 ${asin} 的监控`, 'info');
+}
+
+// ===== Refresh =====
+async function refreshData() {
+  showToast('正在刷新数据...', 'info');
+  try {
+    await fetch('/api/refresh?sample=1', { method: 'POST' });
+  } catch (e) {
+    console.log('Server refresh unavailable, reloading local data');
+  }
+  await loadAllData();
+  showToast('数据已刷新', 'success');
+}
+
+// ===== Export CSV =====
+function exportCSV(asin) {
+  const data = allData[asin];
+  if (!data?.history?.length) {
+    showToast('无数据可导出', 'error');
+    return;
+  }
+  
+  const rows = [['时间', '价格(USD)', '评分', '评分数', '有货']];
+  for (const h of data.history) {
+    rows.push([
+      h.timestamp,
+      h.price ?? '',
+      h.rating ?? '',
+      h.review_count ?? '',
+      h.in_stock === true ? '是' : h.in_stock === false ? '否' : ''
+    ]);
+  }
+  
+  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${asin}_history_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSV 导出成功', 'success');
+}
+
+// ===== Toast =====
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(20px)';
+    toast.style.transition = '0.3s';
+    setTimeout(() => toast.remove(), 300);
+  }, 2500);
+}
+
+// ===== Utils =====
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ===== Modal click outside =====
+document.getElementById('addModal').addEventListener('click', function(e) {
+  if (e.target === this) hideAddModal();
+});
+document.getElementById('confirmModal').addEventListener('click', function(e) {
+  if (e.target === this) hideConfirmModal();
+});
+
+// ===== Keyboard shortcuts =====
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    hideAddModal();
+    hideConfirmModal();
+  }
+});
+
+// ===== Init =====
+loadAllData();
+</script>
+</body>
+</html>
