@@ -1,5 +1,7 @@
 # Amazon ASIN Monitor
 
+[English](README.md) | [中文](README_CN.md)
+
 A local web dashboard that tracks Amazon product price, rating, review count, and stock status over time. Scrapes real data with anti-detection measures. Works with any AI agent platform.
 
 ![Python](https://img.shields.io/badge/python-3.8+-blue)
